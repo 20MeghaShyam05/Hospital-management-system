@@ -1,0 +1,2454 @@
+
+# ================================================================
+# DOCTOR–PATIENT APPOINTMENT MANAGEMENT SYSTEM — NSL SPECIFICATION
+# Hospital Edition
+# ================================================================
+# Entities: Patient, Doctor, Nurse, Availability, AppointmentSlot,
+#           Appointment, AppointmentQueue, Triage, Prescription,
+#           AuditLog
+# GOs:
+#   GO1  — Register Patient
+#   GO2  — Register Doctor
+#   GO3  — Define Doctor Availability
+#   GO4  — Book Appointment
+#   GO5  — Cancel Appointment
+#   GO6  — Reschedule Appointment
+#   GO7  — Manage Appointment Queue
+#   GO8  — Generate Daily Appointment Report
+#   GO9  — Authentication & Authorization
+#   GO10 — Nurse Registration & Management
+#   GO11 — Triage Assessment
+#   GO12 — Prescription Management
+#   GO13 — AI / LLM Assistant
+#   GO14 — Analytics & Visualization
+#   GO15 — G-Suite Integration
+# ================================================================
+
+
+# ================================================================
+# ENTITY DEFINITIONS
+# ================================================================
+
+Patient has patient id, full name, email, mobile, date of birth, gender,
+    blood group, address, registration date, registered by, is active
+
+Doctor has doctor id, full name, email, mobile, specialization,
+    department, max patients per day, is active
+
+Availability has availability id, doctor id, date, start time,
+    end time, slot duration minutes, is active, created by, created date
+
+AppointmentSlot has slot id, availability id, doctor id, date,
+    start time, end time, is lunch break, is booked, is blocked
+
+Appointment has appointment id, patient id, doctor id, slot id,
+    date, start time, end time, status, priority, notes,
+    booked at, booked by, cancellation reason, cancelled by,
+    cancelled at, reschedule count
+
+AppointmentQueue has queue id, doctor id, date, patient id,
+    appointment id, queue position, is emergency, status, added at
+
+
+# ================================================================
+# GO 1 — REGISTER PATIENT
+# ================================================================
+
+GO: Register Patient
+is initiated by Receptionist, Patient (self-registration)
+Trigger: Manual
+
+---
+
+LO1: Submit Patient Registration
+Receptionist or Patient creates Patient with
+    patient id,
+    full name,
+    email,
+    mobile,
+    date of birth,
+    gender,
+    blood group,
+    address,
+    registration date,
+    registered by,
+    is active
+
+Patient.patient id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Patient.full name
+    Source: is provided by user
+    Displayed as: Text Field
+    Max Length: 100
+    Error Message: "Please enter the patient's full name"
+
+Patient.email
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: NF2
+    Error Message: "Please enter a valid email address"
+
+Patient.mobile
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: NF3
+    Max Length: 10
+    Error Message: "Please enter a valid 10-digit mobile number"
+
+Patient.date of birth
+    Source: is provided by user
+    Displayed as: Date Picker
+    Error Message: "Please select date of birth"
+
+Patient.gender
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [Male, Female, Other]
+    Error Message: "Please select gender"
+
+Patient.blood group
+    Source: is provided by user (optional)
+    Displayed as: Dropdown
+    Enum Values: [A+, A-, B+, B-, O+, O-, AB+, AB-]
+    Helper text: "Blood group helps in emergency situations"
+
+Patient.address
+    Source: is provided by user (optional)
+    Displayed as: Textarea
+    Max Length: 300
+
+Patient.registration date
+    Source: is set as current date by system
+    hidden: yes
+
+Patient.registered by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Patient.is active
+    Source: is set as "true" by system
+    hidden: yes
+
+Duplicate Check (informational)
+    Source: NF4
+    editable: no
+    Helper text: "Checks if a patient with this email or mobile already exists"
+    and is dependent on (Patient.email, Patient.mobile)
+
+NF1: Generate Patient ID
+System generates id for Patient.patient id
+Format: "PAT-" + YYYY + "-" + sequential
+
+NF2: Validate Patient Email
+System validates format for Patient.email
+Pattern: RFC 5322 email regex
+    e.g. ^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$
+Error: "Invalid email format"
+
+NF3: Validate Patient Mobile
+System validates format for Patient.mobile
+Pattern: 10-digit Indian mobile number regex
+    e.g. ^[6-9]\d{9}$
+Error: "Mobile must be a valid 10-digit number starting with 6-9"
+
+NF4: Check Duplicate Patient
+System checks Patient
+WHERE Patient.email = entered email
+   OR Patient.mobile = entered mobile
+   AND Patient.is active = true
+Returns: existing Patient.patient id, Patient.full name if found
+
+INPUT SOURCES:
+entered email comes from LO1.Submit Patient Registration.Patient.email
+entered mobile comes from LO1.Submit Patient Registration.Patient.mobile
+
+Business Rules:
+- R001: Patient.email must be unique across all active patients
+  Error: "A patient with this email already exists. Please login instead."
+- R002: Patient.mobile must be unique across all active patients
+  Error: "A patient with this mobile number already exists."
+- R003: Patient.date of birth must be before today
+  Error: "Date of birth cannot be a future date"
+- R004: Patient.full name length must be >= 3
+  Error: "Please enter a valid full name"
+
+---
+
+LO2: Send Registration Confirmation
+System notifies Patient with
+    confirmation email
+after Patient is successfully created in LO1
+
+Confirmation Info.patient name (informational)
+    Source: comes from LO1.Submit Patient Registration.Patient.full name
+    editable: no
+
+Confirmation Info.patient id (informational)
+    Source: comes from LO1.Submit Patient Registration.Patient.patient id
+    editable: no
+
+NF1: Fetch Patient Email for Confirmation
+System fetches Patient.email
+WHERE Patient.patient id = newly registered patient id
+
+INPUT SOURCES:
+newly registered patient id comes from LO1.Submit Patient Registration.Patient.patient id
+
+NF2: Send Welcome Email
+System sends email to Patient using from, to, subject, body
+
+email.from comes from Constant System.notification email
+email.to comes from NF1.Patient.email
+email.subject comes from "Welcome to the Hospital – Your Patient ID: " + Patient.patient id
+email.body comes from "Dear " + Patient.full name + ", your registration is successful."
+
+Patient.patient id comes from LO1.Submit Patient Registration.Patient.patient id
+Patient.full name comes from LO1.Submit Patient Registration.Patient.full name
+
+---
+
+Pathways:
+1. LO1: Submit Patient Registration
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Send Registration Confirmation
+
+2. LO2: Send Registration Confirmation
+   Position: Terminal
+
+GO Level Business Rules:
+- R010: Patient.email must exist before booking any appointment
+- R011: Patient.is active must be true to use any system feature
+- R012: Existing patients must be reused — no duplicate registration allowed
+
+
+# ================================================================
+# GO 2 — REGISTER DOCTOR
+# ================================================================
+
+GO: Register Doctor
+is initiated by Admin
+Trigger: Manual
+
+---
+
+LO1: Submit Doctor Registration
+Admin creates Doctor with
+    doctor id,
+    full name,
+    email,
+    mobile,
+    specialization,
+    department,
+    max patients per day,
+    is active
+
+Doctor.doctor id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Doctor.full name
+    Source: is provided by user
+    Displayed as: Text Field
+    Max Length: 100
+    Error Message: "Please enter the doctor's full name"
+
+Doctor.email
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: NF2
+    Error Message: "Please enter a valid email address"
+
+Doctor.mobile
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: NF3
+    Error Message: "Please enter a valid 10-digit mobile number"
+
+Doctor.specialization
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [General Physician, Cardiologist, Dermatologist,
+                  Neurologist, Orthopedist, Pediatrician, Psychiatrist,
+                  Gynecologist, ENT Specialist, Ophthalmologist]
+    Error Message: "Please select a specialization"
+
+Doctor.department
+    Source: is provided by user
+    Displayed as: Text Field
+    Max Length: 100
+    Error Message: "Please enter the department name"
+
+Doctor.max patients per day
+    Source: is provided by user
+    Displayed as: Number Field
+    Min: 1
+    Max: 100
+    Default Value: 20
+    Helper text: "Maximum patients this doctor can see per day"
+    Error Message: "Please enter a valid patient limit (1–100)"
+
+Doctor.is active
+    Source: is set as "true" by system
+    hidden: yes
+
+Duplicate Check (informational)
+    Source: NF4
+    editable: no
+    Helper text: "Checks if a doctor with this email or mobile already exists"
+    and is dependent on (Doctor.email, Doctor.mobile)
+
+NF1: Generate Doctor ID
+System generates id for Doctor.doctor id
+Format: "DOC-" + YYYY + "-" + sequential
+
+NF2: Validate Doctor Email
+System validates format for Doctor.email
+Pattern: ^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$
+Error: "Invalid email format"
+
+NF3: Validate Doctor Mobile
+System validates format for Doctor.mobile
+Pattern: ^[6-9]\d{9}$
+Error: "Mobile must be a valid 10-digit number starting with 6-9"
+
+NF4: Check Duplicate Doctor
+System checks Doctor
+WHERE Doctor.email = entered email
+   OR Doctor.mobile = entered mobile
+Returns: existing Doctor.doctor id, Doctor.full name if found
+
+INPUT SOURCES:
+entered email comes from LO1.Submit Doctor Registration.Doctor.email
+entered mobile comes from LO1.Submit Doctor Registration.Doctor.mobile
+
+Business Rules:
+- R021: Doctor.email must be unique
+  Error: "A doctor with this email is already registered."
+- R022: Doctor.mobile must be unique
+  Error: "A doctor with this mobile number is already registered."
+- R023: Doctor.max patients per day must be >= 1
+  Error: "Doctor must accept at least 1 patient per day"
+
+---
+
+LO2: Send Doctor Welcome Notification
+System notifies Doctor with
+    welcome email and credentials
+after Doctor is successfully created in LO1
+
+NF1: Fetch Doctor Email
+System fetches Doctor.email
+WHERE Doctor.doctor id = newly registered doctor id
+
+INPUT SOURCES:
+newly registered doctor id comes from LO1.Submit Doctor Registration.Doctor.doctor id
+
+NF2: Send Welcome Email to Doctor
+System sends email to Doctor using from, to, subject, body
+
+email.from comes from Constant System.notification email
+email.to comes from NF1.Doctor.email
+email.subject comes from "Doctor Registration Confirmed – ID: " + Doctor.doctor id
+email.body comes from "Welcome Dr. " + Doctor.full name + ". Please set your availability."
+
+Doctor.doctor id comes from LO1.Submit Doctor Registration.Doctor.doctor id
+Doctor.full name comes from LO1.Submit Doctor Registration.Doctor.full name
+
+---
+
+Pathways:
+1. LO1: Submit Doctor Registration
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Send Doctor Welcome Notification
+
+2. LO2: Send Doctor Welcome Notification
+   Position: Terminal
+
+GO Level Business Rules:
+- R030: Doctor.is active must be true to be available for appointments
+- R031: Doctor.max patients per day is enforced during slot generation
+
+
+# ================================================================
+# GO 3 — DEFINE DOCTOR AVAILABILITY
+# ================================================================
+
+GO: Define Doctor Availability
+is initiated by Doctor, Admin
+Trigger: Manual
+
+---
+
+LO1: Set Daily Availability
+Doctor creates Availability with
+    availability id,
+    doctor id,
+    date,
+    start time,
+    end time,
+    slot duration minutes,
+    is active,
+    created by,
+    created date
+
+Availability.availability id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Availability.doctor id
+    Source: comes from User session.User ID (if Doctor)
+              or is provided by user (if Admin via Dropdown)
+    Displayed as: Dropdown (Admin only)
+    Display: Doctor.full name
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Error Message: "Please select a doctor"
+
+Availability.date
+    Source: is provided by user
+    Displayed as: Date Picker
+    Error Message: "Please select the availability date"
+
+Availability.start time
+    Source: is provided by user
+    Displayed as: Time Picker
+    Default Value: 09:00
+    Error Message: "Please set the availability start time"
+
+Availability.end time
+    Source: is provided by user
+    Displayed as: Time Picker
+    Default Value: 17:00
+    Error Message: "Please set the availability end time"
+
+Availability.slot duration minutes
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [10, 15, 20, 30]
+    Default Value: 15
+    Helper text: "Duration of each appointment slot in minutes"
+    Error Message: "Please select a slot duration"
+
+Total Slots Preview (informational)
+    Source: NF2
+    editable: no
+    Helper text: "Total slots to be generated (excluding lunch break)"
+    and is dependent on (Availability.start time, Availability.end time,
+                         Availability.slot duration minutes)
+
+Availability.is active
+    Source: is set as "true" by system
+    hidden: yes
+
+Availability.created by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Availability.created date
+    Source: is set as current date by system
+    hidden: yes
+
+Existing Availability Check (informational)
+    Source: NF3
+    editable: no
+    Helper text: "Checks for existing availability on selected date"
+    and is dependent on (Availability.doctor id, Availability.date)
+
+NF1: Generate Availability ID
+System generates id for Availability.availability id
+Format: "AVL-" + YYYYMMDD + "-" + sequential
+
+NF2: Calculate Total Preview Slots
+System calculates total slots
+    using (end time - start time) / slot duration minutes
+    minus slots falling within 13:00–13:30 (lunch break)
+
+INPUT SOURCES:
+Availability.start time comes from LO1.Set Daily Availability.Availability.start time
+Availability.end time comes from LO1.Set Daily Availability.Availability.end time
+Availability.slot duration minutes comes from LO1.Set Daily Availability.Availability.slot duration minutes
+
+NF3: Check Existing Availability
+System checks Availability
+WHERE Availability.doctor id = selected doctor id
+  AND Availability.date = selected date
+  AND Availability.is active = true
+Returns: existing record if found
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Set Daily Availability.Availability.doctor id
+selected date comes from LO1.Set Daily Availability.Availability.date
+
+Business Rules:
+- R041: Availability.date must be today or a future date
+  Error: "Cannot set availability for a past date"
+- R042: Availability.end time must be after Availability.start time
+  Error: "End time must be later than start time"
+- R043: Duplicate availability for same doctor and date is not allowed
+  Error: "Availability already defined for this doctor on this date"
+- R044: Minimum availability window must be at least 30 minutes
+  Error: "Availability window must be at least 30 minutes"
+
+---
+
+LO2: Generate Appointment Slots
+System auto-generates AppointmentSlot records for
+    slot id,
+    availability id,
+    doctor id,
+    date,
+    start time,
+    end time,
+    is lunch break,
+    is booked,
+    is blocked
+after LO1 is saved
+
+AppointmentSlot.slot id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+AppointmentSlot.availability id
+    Source: comes from LO1.Set Daily Availability.Availability.availability id
+    hidden: yes
+
+AppointmentSlot.doctor id
+    Source: comes from LO1.Set Daily Availability.Availability.doctor id
+    hidden: yes
+
+AppointmentSlot.date
+    Source: comes from LO1.Set Daily Availability.Availability.date
+    hidden: yes
+
+AppointmentSlot.start time
+    Source: NF2 (iterates per slot)
+    hidden: yes
+
+AppointmentSlot.end time
+    Source: NF3
+    hidden: yes
+
+AppointmentSlot.is lunch break
+    Source: NF4
+    hidden: yes
+
+AppointmentSlot.is booked
+    Source: is set as "false" by system
+    hidden: yes
+
+AppointmentSlot.is blocked
+    Source: NF4 (true if lunch break)
+    hidden: yes
+
+Slots Generated Summary (informational)
+    Source: NF5
+    editable: no
+
+NF1: Generate Slot IDs
+System generates id for each AppointmentSlot.slot id
+Format: "SLT-" + YYYYMMDD + "-" + DoctorID + "-" + sequential
+
+NF2: Calculate Slot Start Times
+System iterates from Availability.start time
+    incrementing by Availability.slot duration minutes
+    until Availability.end time is reached
+Returns: list of slot start times
+
+INPUT SOURCES:
+Availability.start time comes from LO1.Set Daily Availability.Availability.start time
+Availability.end time comes from LO1.Set Daily Availability.Availability.end time
+Availability.slot duration minutes comes from LO1.Set Daily Availability.Availability.slot duration minutes
+
+NF3: Calculate Slot End Times
+System computes AppointmentSlot.end time
+    using slot start time + Availability.slot duration minutes
+
+INPUT SOURCES:
+slot start time comes from NF2 (each iteration)
+Availability.slot duration minutes comes from LO1.Set Daily Availability.Availability.slot duration minutes
+
+NF4: Flag Lunch Break Slots
+System sets AppointmentSlot.is lunch break = true
+    and AppointmentSlot.is blocked = true
+WHERE AppointmentSlot.start time >= 13:00
+  AND AppointmentSlot.start time < 13:30
+
+NF5: Summarize Generated Slots
+System counts total AppointmentSlot records created
+    WHERE AppointmentSlot.availability id = current availability id
+    AND AppointmentSlot.is blocked = false
+Returns: total bookable slots count
+
+NF6: Apply Max Patients Cap
+System checks if generated slot count > Doctor.max patients per day
+    If yes, marks excess slots as AppointmentSlot.is blocked = true
+
+INPUT SOURCES:
+Doctor.max patients per day comes from Doctor.doctor id = LO1.Set Daily Availability.Availability.doctor id
+
+---
+
+Pathways:
+1. LO1: Set Daily Availability
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Generate Appointment Slots
+
+2. LO2: Generate Appointment Slots
+   Position: Terminal
+
+GO Level Business Rules:
+- R051: Lunch break (13:00–13:30) must always be blocked
+- R052: Total bookable slots must not exceed Doctor.max patients per day
+- R053: AppointmentSlot records are immutable once created (only is booked status changes)
+
+
+# ================================================================
+# GO 4 — BOOK APPOINTMENT
+# ================================================================
+
+GO: Book Appointment
+is initiated by Patient, Receptionist
+Trigger: Manual
+
+---
+
+LO1: Select Doctor and Available Slot
+Patient or Receptionist selects
+    doctor id,
+    date,
+    slot id
+
+Selection.doctor id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Doctor.full name + " (" + Doctor.specialization + ")"
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Search Fields: Doctor.full name, Doctor.specialization, Doctor.department
+    Display Columns: Doctor.full name, Doctor.specialization, Doctor.department
+    Error Message: "Please select a doctor"
+
+Selection.date
+    Source: is provided by user
+    Displayed as: Date Picker
+    Error Message: "Please select an appointment date"
+    and is dependent on (Selection.doctor id)
+
+Available Slots List (informational)
+    Source: NF1
+    editable: no
+    Helper text: "Only available, non-lunch, non-blocked slots are shown"
+    and is dependent on (Selection.doctor id, Selection.date)
+
+Selection.slot id
+    Source: is provided by user
+    Displayed as: Time Slot Grid
+    Display: AppointmentSlot.start time + " – " + AppointmentSlot.end time
+    Return Value: AppointmentSlot.slot id
+    Filter: NF1 result set
+    Error Message: "Please select an appointment slot"
+
+Next Available Slot Suggestion (informational)
+    Source: NF2
+    editable: no
+    Helper text: "If no slots are available today, next available slot is shown"
+    and is dependent on (Selection.doctor id, Selection.date)
+
+NF1: Fetch Available Slots
+System fetches AppointmentSlot list
+WHERE AppointmentSlot.doctor id = selected doctor id
+  AND AppointmentSlot.date = selected date
+  AND AppointmentSlot.is booked = false
+  AND AppointmentSlot.is blocked = false
+  AND AppointmentSlot.is lunch break = false
+ORDER BY AppointmentSlot.start time ASC
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+selected date comes from LO1.Select Doctor and Available Slot.Selection.date
+
+NF2: Suggest Next Available Slot
+System checks future AppointmentSlot records
+WHERE AppointmentSlot.doctor id = selected doctor id
+  AND AppointmentSlot.date > selected date
+  AND AppointmentSlot.is booked = false
+  AND AppointmentSlot.is blocked = false
+  AND AppointmentSlot.is lunch break = false
+ORDER BY AppointmentSlot.date ASC, AppointmentSlot.start time ASC
+LIMIT 1
+Returns: AppointmentSlot.date, AppointmentSlot.start time, AppointmentSlot.slot id
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+selected date comes from LO1.Select Doctor and Available Slot.Selection.date
+
+NF3: Fetch Doctor Name for Display
+System fetches Doctor.full name, Doctor.specialization
+WHERE Doctor.doctor id = selected doctor id
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+
+Business Rules:
+- R061: Selection.date must be today or a future date
+  Error: "Cannot book an appointment for a past date"
+- R062: AppointmentSlot must exist and be available
+  Error: "Selected slot is not available"
+
+---
+
+LO2: Confirm Appointment Booking
+Patient or Receptionist creates Appointment with
+    appointment id,
+    patient id,
+    doctor id,
+    slot id,
+    date,
+    start time,
+    end time,
+    status,
+    priority,
+    notes,
+    booked at,
+    booked by
+
+Appointment.appointment id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Appointment.patient id
+    Source: comes from User session.User ID (if Patient)
+              or is provided by user via Dropdown (if Receptionist)
+    Displayed as: Dropdown (Receptionist only)
+    Display: Patient.full name + " | " + Patient.mobile
+    Return Value: Patient.patient id
+    Filter: Patient.is active = true
+    Search Fields: Patient.full name, Patient.mobile, Patient.email
+    Error Message: "Please select or identify the patient"
+
+Booking Info.doctor name (informational)
+    Source: NF2
+    editable: no
+
+Booking Info.slot date (informational)
+    Source: comes from LO1.Select Doctor and Available Slot.Selection.date
+    editable: no
+
+Booking Info.slot time (informational)
+    Source: NF3
+    editable: no
+
+Appointment.doctor id
+    Source: comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+    hidden: yes
+
+Appointment.slot id
+    Source: comes from LO1.Select Doctor and Available Slot.Selection.slot id
+    hidden: yes
+
+Appointment.date
+    Source: comes from LO1.Select Doctor and Available Slot.Selection.date
+    hidden: yes
+
+Appointment.start time
+    Source: NF3.AppointmentSlot.start time
+    hidden: yes
+
+Appointment.end time
+    Source: NF3.AppointmentSlot.end time
+    hidden: yes
+
+Appointment.status
+    Source: is set as "booked" by system
+    hidden: yes
+
+Appointment.priority
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [normal, emergency]
+    Default Value: normal
+    Helper text: "Select emergency only for urgent medical conditions"
+
+Appointment.notes
+    Source: is provided by user (optional)
+    Displayed as: Textarea
+    Max Length: 500
+    Helper text: "Describe your symptoms or reason for visit"
+
+Appointment.booked at
+    Source: is set as current datetime by system
+    hidden: yes
+
+Appointment.booked by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Appointment.reschedule count
+    Source: is set as "0" by system
+    hidden: yes
+
+NF1: Generate Appointment ID
+System generates id for Appointment.appointment id
+Format: "APT-" + YYYYMMDD + "-" + sequential
+
+NF2: Fetch Doctor Name
+System fetches Doctor.full name, Doctor.specialization
+WHERE Doctor.doctor id = selected doctor id
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+
+NF3: Fetch Slot Details
+System fetches AppointmentSlot.start time, AppointmentSlot.end time
+WHERE AppointmentSlot.slot id = selected slot id
+
+INPUT SOURCES:
+selected slot id comes from LO1.Select Doctor and Available Slot.Selection.slot id
+
+NF4: Check Double Booking
+System checks Appointment
+WHERE Appointment.patient id = booking patient id
+  AND Appointment.slot id = selected slot id
+  AND Appointment.status NOT IN [cancelled, completed]
+Returns: conflict flag if found
+
+INPUT SOURCES:
+booking patient id comes from LO2.Confirm Appointment Booking.Appointment.patient id
+selected slot id comes from LO1.Select Doctor and Available Slot.Selection.slot id
+
+NF5: Lock Slot
+System updates AppointmentSlot
+SET AppointmentSlot.is booked = true
+WHERE AppointmentSlot.slot id = selected slot id
+
+INPUT SOURCES:
+selected slot id comes from LO1.Select Doctor and Available Slot.Selection.slot id
+
+NF6: Assign Queue Position
+System counts Appointment records
+WHERE Appointment.doctor id = selected doctor id
+  AND Appointment.date = booking date
+  AND Appointment.status = "booked"
+Returns: count + 1 as queue position
+
+INPUT SOURCES:
+selected doctor id comes from LO1.Select Doctor and Available Slot.Selection.doctor id
+booking date comes from LO1.Select Doctor and Available Slot.Selection.date
+
+NF7: Create Queue Entry
+System creates AppointmentQueue record with
+    queue id, doctor id, date, patient id, appointment id,
+    queue position, is emergency, status, added at
+
+NF8: Fetch Patient Email
+System fetches Patient.email
+WHERE Patient.patient id = booking patient id
+
+INPUT SOURCES:
+booking patient id comes from LO2.Confirm Appointment Booking.Appointment.patient id
+
+NF9: Send Booking Confirmation Email
+System sends email to Patient using from, to, subject, body
+
+email.from comes from Constant System.notification email
+email.to comes from NF8.Patient.email
+email.subject comes from "Appointment Confirmed – " + Appointment.appointment id
+email.body comes from "Your appointment with Dr. " + Doctor.full name
+    + " is confirmed on " + Appointment.date + " at " + Appointment.start time
+
+Appointment.appointment id comes from NF1
+Doctor.full name comes from NF2
+Appointment.date comes from LO1.Select Doctor and Available Slot.Selection.date
+Appointment.start time comes from NF3.AppointmentSlot.start time
+
+Business Rules:
+- R071: Double booking must be prevented — same patient, same slot
+  Error: "You already have an appointment in this time slot"
+- R072: Slot must still be available at time of confirmation (race condition guard)
+  Error: "This slot was just booked by someone else. Please select another slot."
+- R073: Patient.is active must be true to book
+  Error: "Patient account is inactive"
+- R074: Appointment.priority = "emergency" triggers priority queue insertion
+
+---
+
+Pathways:
+1. LO1: Select Doctor and Available Slot
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Confirm Appointment Booking
+
+2. LO2: Confirm Appointment Booking
+   Position: Terminal
+
+GO Level Business Rules:
+- R080: Lunch break (13:00–13:30) slots must never appear in available slots
+- R081: Concurrent booking must be handled — slot locking must be atomic
+- R082: If no slots available on chosen date, NF2 suggestion must be surfaced to user
+
+
+# ================================================================
+# GO 5 — CANCEL APPOINTMENT
+# ================================================================
+
+GO: Cancel Appointment
+is initiated by Patient, Receptionist, Doctor
+Trigger: Manual
+
+---
+
+LO1: Request Appointment Cancellation
+Patient selects and submits cancellation for Appointment with
+    cancellation reason,
+    cancelled by,
+    status
+
+Appointment.appointment id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Appointment.date + " | " + Appointment.start time + " | Dr." + Doctor.full name
+    Return Value: Appointment.appointment id
+    Filter: Appointment.patient id = current user
+              AND Appointment.status = "booked"
+    Error Message: "Please select an appointment to cancel"
+
+Appointment Info.doctor name (informational)
+    Source: NF1
+    editable: no
+
+Appointment Info.date (informational)
+    Source: NF2.Appointment.date
+    editable: no
+
+Appointment Info.start time (informational)
+    Source: NF2.Appointment.start time
+    editable: no
+
+Appointment Info.end time (informational)
+    Source: NF2.Appointment.end time
+    editable: no
+
+Appointment.cancellation reason
+    Source: is provided by user
+    Displayed as: Textarea
+    Max Length: 300
+    Error Message: "Please provide a reason for cancellation"
+
+Appointment.cancelled by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Appointment.status
+    Source: is set as "cancelled" by system
+    hidden: yes
+
+Appointment.cancelled at
+    Source: is set as current datetime by system
+    hidden: yes
+
+NF1: Fetch Doctor Name for Appointment
+System fetches Doctor.full name
+WHERE Doctor.doctor id = appointment's doctor id
+
+INPUT SOURCES:
+appointment's doctor id comes from NF2.Appointment.doctor id
+
+NF2: Fetch Appointment Details
+System fetches
+    Appointment.doctor id,
+    Appointment.slot id,
+    Appointment.date,
+    Appointment.start time,
+    Appointment.end time,
+    Appointment.patient id
+WHERE Appointment.appointment id = selected appointment id
+
+INPUT SOURCES:
+selected appointment id comes from LO1.Request Appointment Cancellation.Appointment.appointment id
+
+NF3: Release Booked Slot
+System updates AppointmentSlot
+SET AppointmentSlot.is booked = false
+WHERE AppointmentSlot.slot id = appointment's slot id
+
+INPUT SOURCES:
+appointment's slot id comes from NF2.Appointment.slot id
+
+NF4: Remove from Queue
+System updates AppointmentQueue
+SET AppointmentQueue.status = "cancelled"
+WHERE AppointmentQueue.appointment id = cancelled appointment id
+
+INPUT SOURCES:
+cancelled appointment id comes from LO1.Request Appointment Cancellation.Appointment.appointment id
+
+NF5: Reorder Queue Positions
+System updates AppointmentQueue queue position
+    for all remaining queue entries
+WHERE AppointmentQueue.doctor id = appointment's doctor id
+  AND AppointmentQueue.date = appointment's date
+  AND AppointmentQueue.status = "waiting"
+ORDER BY AppointmentQueue.queue position ASC
+SET positions to sequential starting from 1
+
+INPUT SOURCES:
+appointment's doctor id comes from NF2.Appointment.doctor id
+appointment's date comes from NF2.Appointment.date
+
+NF6: Fetch Patient Email
+System fetches Patient.email
+WHERE Patient.patient id = appointment's patient id
+
+INPUT SOURCES:
+appointment's patient id comes from NF2.Appointment.patient id
+
+NF7: Send Cancellation Confirmation Email
+System sends email to Patient using from, to, subject, body
+
+email.from comes from Constant System.notification email
+email.to comes from NF6.Patient.email
+email.subject comes from "Appointment Cancelled – " + Appointment.appointment id
+email.body comes from "Your appointment on " + Appointment.date
+    + " at " + Appointment.start time + " has been cancelled."
+
+Appointment.appointment id comes from LO1.Request Appointment Cancellation.Appointment.appointment id
+Appointment.date comes from NF2.Appointment.date
+Appointment.start time comes from NF2.Appointment.start time
+
+Business Rules:
+- R091: Appointment.date must be after today to allow cancellation
+  Error: "Cannot cancel an appointment that has already passed"
+- R092: Appointment.cancellation reason length must be >= 10
+  Error: "Please provide a more detailed cancellation reason"
+- R093: Slot must be released immediately on cancellation for other patients
+
+---
+
+Pathways:
+1. LO1: Request Appointment Cancellation
+   Position: Start + Terminal
+   Route Type: Single Step (no manager approval needed)
+
+GO Level Business Rules:
+- R100: Appointment.status transitions: "booked" → "cancelled"
+- R101: Appointment.date and Appointment.start time become immutable after "cancelled"
+- R102: Queue must be reordered after every cancellation
+
+
+# ================================================================
+# GO 6 — RESCHEDULE APPOINTMENT
+# ================================================================
+
+GO: Reschedule Appointment
+is initiated by Patient, Receptionist
+Trigger: Manual
+
+---
+
+LO1: Select Appointment to Reschedule
+Patient selects existing appointment for rescheduling
+
+Appointment.appointment id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Appointment.date + " | " + Appointment.start time + " | Dr." + Doctor.full name
+    Return Value: Appointment.appointment id
+    Filter: Appointment.patient id = current patient
+              AND Appointment.status = "booked"
+              AND Appointment.date >= today
+    Error Message: "Please select a booked appointment to reschedule"
+
+Current Appointment Info.doctor name (informational)
+    Source: NF1
+    editable: no
+
+Current Appointment Info.current date (informational)
+    Source: NF2.Appointment.date
+    editable: no
+
+Current Appointment Info.current time (informational)
+    Source: NF2.Appointment.start time
+    editable: no
+
+Current Appointment Info.reschedule count (informational)
+    Source: NF2.Appointment.reschedule count
+    editable: no
+    Helper text: "Maximum 2 reschedules allowed per appointment"
+
+NF1: Fetch Doctor Name
+System fetches Doctor.full name
+WHERE Doctor.doctor id = appointment's doctor id
+
+INPUT SOURCES:
+appointment's doctor id comes from NF2.Appointment.doctor id
+
+NF2: Fetch Current Appointment Details
+System fetches
+    Appointment.doctor id,
+    Appointment.slot id,
+    Appointment.date,
+    Appointment.start time,
+    Appointment.end time,
+    Appointment.reschedule count
+WHERE Appointment.appointment id = selected appointment id
+
+INPUT SOURCES:
+selected appointment id comes from LO1.Select Appointment to Reschedule.Appointment.appointment id
+
+Business Rules:
+- R111: Appointment.reschedule count must be < 2
+  Error: "Maximum reschedule limit reached. Please cancel and rebook."
+
+---
+
+LO2: Select New Slot
+Patient selects new date and slot for same doctor
+
+New Selection.date
+    Source: is provided by user
+    Displayed as: Date Picker
+    Error Message: "Please select a new appointment date"
+
+Available Slots List (informational)
+    Source: NF1
+    editable: no
+    and is dependent on (NF2.Appointment.doctor id, New Selection.date)
+
+New Selection.slot id
+    Source: is provided by user
+    Displayed as: Time Slot Grid
+    Display: AppointmentSlot.start time + " – " + AppointmentSlot.end time
+    Return Value: AppointmentSlot.slot id
+    Filter: NF1 result set
+    Error Message: "Please select a new appointment slot"
+
+Next Available Slot Suggestion (informational)
+    Source: NF2
+    editable: no
+    Helper text: "Next available slot across future dates for this doctor"
+    and is dependent on (NF2.Appointment.doctor id, New Selection.date)
+
+NF1: Fetch Available Slots for New Date
+System fetches AppointmentSlot list
+WHERE AppointmentSlot.doctor id = original doctor id
+  AND AppointmentSlot.date = new selected date
+  AND AppointmentSlot.is booked = false
+  AND AppointmentSlot.is blocked = false
+  AND AppointmentSlot.is lunch break = false
+ORDER BY AppointmentSlot.start time ASC
+
+INPUT SOURCES:
+original doctor id comes from LO1.Select Appointment to Reschedule (via NF2.Appointment.doctor id)
+new selected date comes from LO2.Select New Slot.New Selection.date
+
+NF2: Suggest Next Available Date-Slot
+System fetches earliest available slot
+WHERE AppointmentSlot.doctor id = original doctor id
+  AND AppointmentSlot.date > new selected date
+  AND AppointmentSlot.is booked = false
+  AND AppointmentSlot.is blocked = false
+ORDER BY AppointmentSlot.date ASC, AppointmentSlot.start time ASC
+LIMIT 1
+
+---
+
+LO3: Confirm Reschedule
+System updates Appointment and swaps slots
+
+Appointment.slot id
+    Source: NF1 (new slot id)
+    hidden: yes
+
+Appointment.date
+    Source: NF2 (new date)
+    hidden: yes
+
+Appointment.start time
+    Source: NF2 (new start time)
+    hidden: yes
+
+Appointment.end time
+    Source: NF2 (new end time)
+    hidden: yes
+
+Appointment.reschedule count
+    Source: NF3 (incremented)
+    hidden: yes
+
+Appointment.status
+    Source: is set as "rescheduled" then "booked" by system
+    hidden: yes
+
+NF1: Lock New Slot
+System updates AppointmentSlot
+SET AppointmentSlot.is booked = true
+WHERE AppointmentSlot.slot id = new selected slot id
+
+INPUT SOURCES:
+new selected slot id comes from LO2.Select New Slot.New Selection.slot id
+
+NF2: Fetch New Slot Details
+System fetches AppointmentSlot.date, AppointmentSlot.start time, AppointmentSlot.end time
+WHERE AppointmentSlot.slot id = new selected slot id
+
+INPUT SOURCES:
+new selected slot id comes from LO2.Select New Slot.New Selection.slot id
+
+NF3: Increment Reschedule Count
+System calculates new reschedule count
+    using Appointment.reschedule count + 1
+
+INPUT SOURCES:
+Appointment.reschedule count comes from LO1.Select Appointment to Reschedule (via NF2.Appointment.reschedule count)
+
+NF4: Release Old Slot
+System updates AppointmentSlot
+SET AppointmentSlot.is booked = false
+WHERE AppointmentSlot.slot id = old slot id
+
+INPUT SOURCES:
+old slot id comes from LO1.Select Appointment to Reschedule (via NF2.Appointment.slot id)
+
+NF5: Update Queue Entry
+System updates AppointmentQueue
+SET AppointmentQueue.appointment id = appointment id
+    AppointmentQueue.queue position = NF6 result
+WHERE AppointmentQueue.appointment id = old appointment id (same record, updated slot)
+
+NF6: Recalculate Queue Position
+System counts Appointment records
+WHERE Appointment.doctor id = doctor id
+  AND Appointment.date = new date
+  AND Appointment.status = "booked"
+Returns: count as new queue position
+
+NF7: Fetch Patient Email
+System fetches Patient.email
+WHERE Patient.patient id = appointment's patient id
+
+INPUT SOURCES:
+appointment's patient id comes from LO1.Select Appointment to Reschedule (via NF2.Appointment.patient id)
+
+NF8: Send Reschedule Confirmation Email
+System sends email to Patient using from, to, subject, body
+
+email.from comes from Constant System.notification email
+email.to comes from NF7.Patient.email
+email.subject comes from "Appointment Rescheduled – " + Appointment.appointment id
+email.body comes from "Your appointment has been rescheduled to "
+    + Appointment.date + " at " + Appointment.start time
+
+Appointment.appointment id comes from LO1.Select Appointment to Reschedule.Appointment.appointment id
+Appointment.date comes from NF2.AppointmentSlot.date
+Appointment.start time comes from NF2.AppointmentSlot.start time
+
+---
+
+Pathways:
+1. LO1: Select Appointment to Reschedule
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Select New Slot
+
+2. LO2: Select New Slot
+   Route Type: Sequential
+   Next: LO3: Confirm Reschedule
+
+3. LO3: Confirm Reschedule
+   Position: Terminal
+
+GO Level Business Rules:
+- R120: Maximum 2 reschedules per appointment
+- R121: Rescheduling must be with the same doctor
+- R122: Old slot must be released before new slot is locked (atomic swap)
+
+
+# ================================================================
+# GO 7 — MANAGE APPOINTMENT QUEUE
+# ================================================================
+
+GO: Manage Appointment Queue
+is initiated by Receptionist, Doctor
+Trigger: Automatic (on booking/cancellation) and Manual
+
+---
+
+LO1: View and Manage Daily Queue
+Receptionist views AppointmentQueue for a given doctor and date
+
+Queue Filter.doctor id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Doctor.full name
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Error Message: "Please select a doctor"
+
+Queue Filter.date
+    Source: is provided by user
+    Displayed as: Date Picker
+    Default Value: today
+    Error Message: "Please select a date"
+
+Queue List (informational)
+    Source: NF1
+    editable: no
+    Helper text: "Emergency patients appear at the top regardless of booking time"
+    and is dependent on (Queue Filter.doctor id, Queue Filter.date)
+
+Queue Summary.total patients (informational)
+    Source: NF2
+    editable: no
+
+Queue Summary.emergency count (informational)
+    Source: NF3
+    editable: no
+
+NF1: Fetch Queue for Doctor and Date
+System fetches AppointmentQueue joined with Appointment and Patient
+WHERE AppointmentQueue.doctor id = selected doctor id
+  AND AppointmentQueue.date = selected date
+  AND AppointmentQueue.status IN ["waiting", "in-progress"]
+ORDER BY AppointmentQueue.is emergency DESC,
+         AppointmentQueue.queue position ASC
+Returns: queue position, patient name, appointment time, priority, status
+
+INPUT SOURCES:
+selected doctor id comes from LO1.View and Manage Daily Queue.Queue Filter.doctor id
+selected date comes from LO1.View and Manage Daily Queue.Queue Filter.date
+
+NF2: Count Total Queue Entries
+System counts AppointmentQueue
+WHERE AppointmentQueue.doctor id = selected doctor id
+  AND AppointmentQueue.date = selected date
+  AND AppointmentQueue.status IN ["waiting", "in-progress"]
+
+INPUT SOURCES:
+selected doctor id comes from LO1.View and Manage Daily Queue.Queue Filter.doctor id
+selected date comes from LO1.View and Manage Daily Queue.Queue Filter.date
+
+NF3: Count Emergency Entries
+System counts AppointmentQueue
+WHERE AppointmentQueue.doctor id = selected doctor id
+  AND AppointmentQueue.date = selected date
+  AND AppointmentQueue.is emergency = true
+  AND AppointmentQueue.status = "waiting"
+
+INPUT SOURCES:
+selected doctor id comes from LO1.View and Manage Daily Queue.Queue Filter.doctor id
+selected date comes from LO1.View and Manage Daily Queue.Queue Filter.date
+
+---
+
+LO2: Process Next Patient in Queue
+Receptionist or Doctor marks next patient as "in-progress"
+
+AppointmentQueue.queue id
+    Source: NF1
+    hidden: yes
+
+Queue Entry Info.patient name (informational)
+    Source: NF2
+    editable: no
+
+Queue Entry Info.appointment time (informational)
+    Source: NF3.Appointment.start time
+    editable: no
+
+Queue Entry Info.priority (informational)
+    Source: NF3.Appointment.priority
+    editable: no
+
+AppointmentQueue.status
+    Source: is set as "in-progress" by system
+    hidden: yes
+
+NF1: Get Next Queue Entry
+System fetches AppointmentQueue
+WHERE AppointmentQueue.doctor id = doctor's id
+  AND AppointmentQueue.date = today
+  AND AppointmentQueue.status = "waiting"
+ORDER BY AppointmentQueue.is emergency DESC,
+         AppointmentQueue.queue position ASC
+LIMIT 1
+Returns: AppointmentQueue.queue id
+
+NF2: Fetch Patient Name for Queue Entry
+System fetches Patient.full name
+WHERE Patient.patient id = queue entry's patient id
+
+NF3: Fetch Appointment Details for Queue Entry
+System fetches Appointment.start time, Appointment.priority
+WHERE Appointment.appointment id = queue entry's appointment id
+
+---
+
+LO3: Complete or Mark Absent
+Doctor or Receptionist resolves the current queue entry
+
+AppointmentQueue.status
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [completed, no-show]
+    Error Message: "Please mark the outcome for this patient"
+
+Appointment.status
+    Source: NF1 (mirrors queue outcome)
+    hidden: yes
+
+NF1: Sync Appointment Status from Queue Outcome
+System updates Appointment.status
+    using queue outcome
+Condition:
+    "completed" when AppointmentQueue.status = "completed"
+    "no-show" when AppointmentQueue.status = "no-show"
+
+INPUT SOURCES:
+AppointmentQueue.status comes from LO3.Complete or Mark Absent.AppointmentQueue.status
+
+NF2: Shift Queue Forward
+System decrements queue positions by 1
+WHERE AppointmentQueue.doctor id = doctor's id
+  AND AppointmentQueue.date = today
+  AND AppointmentQueue.status = "waiting"
+  AND AppointmentQueue.queue position > completed entry's position
+
+---
+
+Pathways:
+1. LO1: View and Manage Daily Queue
+   Position: Start
+   Route Type: Alternate
+   a. If queue has entries
+      Next: LO2: Process Next Patient in Queue
+   b. Otherwise
+      Next: End (no patients in queue)
+
+2. LO2: Process Next Patient in Queue
+   Route Type: Sequential
+   Next: LO3: Complete or Mark Absent
+
+3. LO3: Complete or Mark Absent
+   Position: Terminal
+
+GO Level Business Rules:
+- R130: Emergency patients (Appointment.priority = "emergency") always head the queue
+- R131: Queue position must be recalculated after every status change
+- R132: AppointmentQueue.status transitions: "waiting" → "in-progress" → "completed" or "no-show"
+
+
+# ================================================================
+# GO 8 — GENERATE DAILY APPOINTMENT REPORT
+# ================================================================
+
+GO: Generate Daily Appointment Report
+is initiated by Admin, Doctor, Receptionist
+Trigger: Manual or Scheduled (end of day)
+
+---
+
+LO1: Configure Report Parameters
+Admin selects report scope
+
+Report Config.doctor id
+    Source: is provided by user (optional)
+    Displayed as: Dropdown
+    Display: Doctor.full name
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Helper text: "Leave blank to generate report for all doctors"
+
+Report Config.date
+    Source: is provided by user
+    Displayed as: Date Picker
+    Default Value: today
+    Error Message: "Please select a report date"
+
+Report Config.report type
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [Daily Summary, Doctor-wise Breakdown, Peak Hours Analysis, Cancellation Report]
+    Default Value: Daily Summary
+    Error Message: "Please select a report type"
+
+Report Preview (informational)
+    Source: NF1
+    editable: no
+    and is dependent on (Report Config.doctor id, Report Config.date,
+                          Report Config.report type)
+
+NF1: Pre-check Data Availability
+System counts Appointment
+WHERE Appointment.date = selected date
+  AND (Appointment.doctor id = selected doctor id OR all doctors if blank)
+Returns: total count; warns if zero records
+
+INPUT SOURCES:
+selected date comes from LO1.Configure Report Parameters.Report Config.date
+selected doctor id comes from LO1.Configure Report Parameters.Report Config.doctor id
+
+Business Rules:
+- R141: Report Config.date must not be a future date
+  Error: "Cannot generate report for a future date"
+
+---
+
+LO2: Generate and Export Report
+System computes all report metrics and generates output
+
+Report Output.total appointments (informational)
+    Source: NF1
+    editable: no
+
+Report Output.total completed (informational)
+    Source: NF2
+    editable: no
+
+Report Output.total cancelled (informational)
+    Source: NF3
+    editable: no
+
+Report Output.total no-shows (informational)
+    Source: NF4
+    editable: no
+
+Report Output.busiest doctor (informational)
+    Source: NF5
+    editable: no
+
+Report Output.peak booking hour (informational)
+    Source: NF6
+    editable: no
+
+Report Output.slot utilization percent (informational)
+    Source: NF7
+    editable: no
+
+Report Output.cancellation rate percent (informational)
+    Source: NF8
+    editable: no
+
+Report Output.specialization breakdown (informational)
+    Source: NF9
+    editable: no
+
+Report Export.file path (informational)
+    Source: NF10
+    editable: no
+
+NF1: Count Total Appointments
+System counts Appointment
+WHERE Appointment.date = report date
+  AND (Appointment.doctor id = filter doctor id OR all)
+  AND Appointment.status IN ["booked", "completed", "no-show", "cancelled"]
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+filter doctor id comes from LO1.Configure Report Parameters.Report Config.doctor id
+
+NF2: Count Completed Appointments
+System counts Appointment
+WHERE Appointment.date = report date
+  AND Appointment.status = "completed"
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF3: Count Cancelled Appointments
+System counts Appointment
+WHERE Appointment.date = report date
+  AND Appointment.status = "cancelled"
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF4: Count No-Show Appointments
+System counts Appointment
+WHERE Appointment.date = report date
+  AND Appointment.status = "no-show"
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF5: Find Busiest Doctor
+System aggregates Appointment grouped by Appointment.doctor id
+WHERE Appointment.date = report date
+  AND Appointment.status = "completed"
+ORDER BY count DESC
+LIMIT 1
+Returns: Doctor.full name, Doctor.specialization, appointment count
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF6: Calculate Peak Booking Hour
+System aggregates Appointment grouped by Appointment.start time hour
+WHERE Appointment.date = report date
+ORDER BY count DESC
+LIMIT 1
+Returns: peak hour (e.g. "10:00 AM – 11:00 AM"), appointment count
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF7: Calculate Slot Utilization
+System computes slot utilization percentage
+    using (NF2 completed count / NF1 total slots generated) * 100
+
+INPUT SOURCES:
+NF2 completed count comes from NF2
+total slots generated = total AppointmentSlot WHERE date = report date AND is blocked = false
+
+NF8: Calculate Cancellation Rate
+System computes cancellation percentage
+    using (NF3 cancelled count / NF1 total appointments) * 100
+
+INPUT SOURCES:
+NF3 cancelled count comes from NF3
+NF1 total appointments comes from NF1
+
+NF9: Specialization Breakdown
+System aggregates Appointment joined with Doctor
+    grouped by Doctor.specialization
+WHERE Appointment.date = report date
+Returns: list of specialization → appointment count
+
+INPUT SOURCES:
+report date comes from LO1.Configure Report Parameters.Report Config.date
+
+NF10: Export Report to File
+System generates report file (PDF / CSV)
+    using all NF1–NF9 results
+    formatted with date, doctor filter, and all metrics
+Returns: file path for download
+
+---
+
+Pathways:
+1. LO1: Configure Report Parameters
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Generate and Export Report
+
+2. LO2: Generate and Export Report
+   Position: Terminal
+
+GO Level Business Rules:
+- R150: Report must include all appointment statuses for completeness
+- R151: Busiest doctor metric uses only "completed" appointments
+- R152: Cancellation rate uses total booked appointments as denominator
+- R153: Report file must be downloadable in PDF and CSV format
+
+
+# ================================================================
+# ADDITIONAL ENTITY DEFINITIONS
+# ================================================================
+
+Nurse has nurse id, full name, email, mobile, department,
+    assigned doctor id, is active, registered by, registration date
+
+Triage has triage id, patient id, doctor id, triage date,
+    symptoms, severity, queue type, notes, recorded by, recorded at
+
+Prescription has prescription id, appointment id, patient id,
+    doctor id, medications, instructions, issued at, is active
+
+AuditLog has log id, event, data, logged at
+
+
+# ================================================================
+# GO 9 — AUTHENTICATION & AUTHORIZATION
+# ================================================================
+
+GO: Authentication & Authorization
+is initiated by Patient, Doctor, Nurse, Receptionist, Admin
+Trigger: Manual (on every session start)
+
+---
+
+LO1: Login
+User submits credentials to obtain a session token
+
+Login.email
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: RFC 5322 email regex
+    Error Message: "Please enter a valid email address"
+
+Login.password
+    Source: is provided by user
+    Displayed as: Password Field
+    Error Message: "Please enter your password"
+
+Login.role
+    Source: NF1 (derived from stored user record)
+    hidden: yes
+
+Session.token
+    Source: NF2
+    hidden: yes
+
+NF1: Resolve User Role
+System fetches user record
+WHERE user.email = entered email
+Returns: user.role (admin, doctor, nurse, receptionist, patient)
+
+INPUT SOURCES:
+entered email comes from LO1.Login.Login.email
+
+NF2: Generate Session Token
+System generates signed JWT token
+    using user.id, user.role, expiry = 8 hours
+
+Business Rules:
+- R201: Invalid credentials must return generic error (no role enumeration)
+  Error: "Invalid email or password"
+- R202: Inactive user accounts must be blocked
+  Error: "Your account is inactive. Contact admin."
+- R203: Token expiry is 8 hours; expired tokens redirect to login
+
+---
+
+LO2: Role-Based Access Control
+System enforces permissions per role on every protected route
+
+RBAC.role
+    Source: comes from Session.token
+    hidden: yes
+
+RBAC.allowed routes
+    Source: NF1
+    hidden: yes
+
+NF1: Resolve Allowed Routes by Role
+System maps role to permitted endpoints
+    admin:        all routes
+    doctor:       own appointments, slots, queue, triage, prescriptions, reports
+    nurse:        triage, queue view, patient lookup
+    receptionist: patients, appointments (book/cancel/reschedule), queue, slots
+    patient:      own appointments, own prescriptions, book/cancel/reschedule
+
+Business Rules:
+- R204: Role mismatch on a protected route returns 403 Forbidden
+- R205: Doctor can only access data scoped to their own doctor id
+- R206: Patient can only access their own appointment and prescription records
+
+---
+
+Pathways:
+1. LO1: Login
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Role-Based Access Control
+
+2. LO2: Role-Based Access Control
+   Position: Terminal
+
+GO Level Business Rules:
+- R210: All mutations (POST/PUT/DELETE) require a valid session token
+- R211: Admin is the only role that can register doctors and nurses
+- R212: Audit log is written for every successful login
+
+
+# ================================================================
+# GO 10 — NURSE REGISTRATION & MANAGEMENT
+# ================================================================
+
+GO: Nurse Registration & Management
+is initiated by Admin
+Trigger: Manual
+
+---
+
+LO1: Submit Nurse Registration
+Admin creates Nurse with
+    nurse id,
+    full name,
+    email,
+    mobile,
+    department,
+    assigned doctor id,
+    is active,
+    registered by,
+    registration date
+
+Nurse.nurse id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Nurse.full name
+    Source: is provided by user
+    Displayed as: Text Field
+    Max Length: 100
+    Error Message: "Please enter the nurse's full name"
+
+Nurse.email
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: RFC 5322 email regex
+    Error Message: "Please enter a valid email address"
+
+Nurse.mobile
+    Source: is provided by user
+    Displayed as: Text Field
+    Validation: ^[6-9]\d{9}$
+    Error Message: "Please enter a valid 10-digit mobile number"
+
+Nurse.department
+    Source: is provided by user
+    Displayed as: Text Field
+    Max Length: 100
+    Error Message: "Please enter the department"
+
+Nurse.assigned doctor id
+    Source: is provided by user (optional)
+    Displayed as: Dropdown
+    Display: Doctor.full name + " (" + Doctor.specialization + ")"
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Helper text: "Assign this nurse to a primary doctor (optional)"
+
+Nurse.is active
+    Source: is set as "true" by system
+    hidden: yes
+
+Nurse.registered by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Nurse.registration date
+    Source: is set as current date by system
+    hidden: yes
+
+NF1: Generate Nurse ID
+System generates id for Nurse.nurse id
+Format: "HMS-NRS-" + YYYYMMDD + "-" + sequential
+
+NF2: Check Duplicate Nurse
+System checks Nurse
+WHERE Nurse.email = entered email
+   OR Nurse.mobile = entered mobile
+Returns: existing record if found
+
+INPUT SOURCES:
+entered email comes from LO1.Submit Nurse Registration.Nurse.email
+entered mobile comes from LO1.Submit Nurse Registration.Nurse.mobile
+
+Business Rules:
+- R301: Nurse.email must be unique
+  Error: "A nurse with this email is already registered."
+- R302: Nurse.mobile must be unique
+  Error: "A nurse with this mobile number is already registered."
+- R303: Only Admin can register nurses
+
+---
+
+LO2: Send Nurse Welcome Notification
+System sends welcome email after successful registration
+
+NF1: Send Welcome Email to Nurse
+System sends email to Nurse using from, to, subject, body
+email.from comes from Constant System.notification email
+email.to comes from LO1.Submit Nurse Registration.Nurse.email
+email.subject comes from "Nurse Registration Confirmed – ID: " + Nurse.nurse id
+email.body comes from "Welcome " + Nurse.full name + ". Your account is ready."
+
+---
+
+Pathways:
+1. LO1: Submit Nurse Registration
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Send Nurse Welcome Notification
+
+2. LO2: Send Nurse Welcome Notification
+   Position: Terminal
+
+GO Level Business Rules:
+- R310: Nurse.is active must be true to access any clinical feature
+- R311: Existing nurses must be reused — no duplicate registration allowed
+
+
+# ================================================================
+# GO 11 — TRIAGE ASSESSMENT
+# ================================================================
+
+GO: Triage Assessment
+is initiated by Nurse, Doctor, Receptionist
+Trigger: Manual (on patient arrival)
+
+---
+
+LO1: Record Triage Entry
+Nurse records triage assessment for a patient
+
+Triage.triage id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Triage.patient id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Patient.full name + " | " + Patient.mobile
+    Return Value: Patient.patient id
+    Filter: Patient.is active = true
+    Search Fields: Patient.full name, Patient.mobile, Patient.uhid
+    Error Message: "Please select a patient"
+
+Triage.doctor id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Doctor.full name + " (" + Doctor.specialization + ")"
+    Return Value: Doctor.doctor id
+    Filter: Doctor.is active = true
+    Error Message: "Please select the attending doctor"
+
+Triage.triage date
+    Source: is set as current date by system
+    Displayed as: Date (read-only)
+
+Triage.symptoms
+    Source: is provided by user
+    Displayed as: Textarea
+    Max Length: 500
+    Error Message: "Please describe the patient's symptoms"
+
+Triage.severity
+    Source: is provided by user
+    Displayed as: Dropdown
+    Enum Values: [low, medium, high, critical]
+    Error Message: "Please select severity level"
+
+Triage.queue type
+    Source: NF2 (derived from severity)
+    hidden: yes
+
+Triage.notes
+    Source: is provided by user (optional)
+    Displayed as: Textarea
+    Max Length: 300
+
+Triage.recorded by
+    Source: comes from User session.User ID
+    hidden: yes
+
+Triage.recorded at
+    Source: is set as current datetime by system
+    hidden: yes
+
+NF1: Generate Triage ID
+System generates id for Triage.triage id
+Format: "HMS-TRG-" + YYYYMMDD + "-" + sequential
+
+NF2: Derive Queue Type from Severity
+System maps Triage.severity to Triage.queue type
+    critical → emergency
+    high     → priority
+    medium   → standard
+    low      → standard
+
+NF3: Escalate Emergency to Queue
+System updates AppointmentQueue
+SET AppointmentQueue.is emergency = true
+WHERE AppointmentQueue.appointment id matches patient's active appointment
+    AND Triage.queue type = "emergency"
+
+INPUT SOURCES:
+Triage.queue type comes from NF2
+
+Business Rules:
+- R401: Triage.severity = critical or high automatically escalates queue position
+- R402: Triage entry is append-only — no edits after submission
+- R403: Triage can be recorded without an existing appointment (walk-in patients)
+
+---
+
+Pathways:
+1. LO1: Record Triage Entry
+   Position: Start + Terminal
+   Route Type: Single Step
+
+GO Level Business Rules:
+- R410: Critical severity must trigger emergency queue flag immediately
+- R411: Each triage entry is linked to a patient and an optional doctor
+
+
+# ================================================================
+# GO 12 — PRESCRIPTION MANAGEMENT
+# ================================================================
+
+GO: Prescription Management
+is initiated by Doctor
+Trigger: Manual (after appointment completion)
+
+---
+
+LO1: Issue Prescription
+Doctor creates Prescription for a completed appointment
+
+Prescription.prescription id
+    Source: NF1
+    hidden: yes
+    editable: no
+
+Prescription.appointment id
+    Source: is provided by user
+    Displayed as: Dropdown
+    Display: Appointment.date + " | " + Patient.full name
+    Return Value: Appointment.appointment id
+    Filter: Appointment.doctor id = current doctor
+              AND Appointment.status = "completed"
+    Error Message: "Please select the completed appointment"
+
+Prescription.patient id
+    Source: NF2 (derived from selected appointment)
+    hidden: yes
+
+Prescription.doctor id
+    Source: comes from User session.User ID (doctor)
+    hidden: yes
+
+Prescription.medications
+    Source: is provided by user
+    Displayed as: Textarea
+    Max Length: 1000
+    Helper text: "Enter medication names, dosages, and frequency"
+    Error Message: "Please enter at least one medication"
+
+Prescription.instructions
+    Source: is provided by user (optional)
+    Displayed as: Textarea
+    Max Length: 500
+    Helper text: "Special instructions, diet advice, follow-up date"
+
+Prescription.issued at
+    Source: is set as current datetime by system
+    hidden: yes
+
+Prescription.is active
+    Source: is set as "true" by system
+    hidden: yes
+
+NF1: Generate Prescription ID
+System generates id for Prescription.prescription id
+Format: "HMS-RX-" + YYYYMMDD + "-" + sequential
+
+NF2: Fetch Patient from Appointment
+System fetches Appointment.patient id
+WHERE Appointment.appointment id = selected appointment id
+
+INPUT SOURCES:
+selected appointment id comes from LO1.Issue Prescription.Prescription.appointment id
+
+Business Rules:
+- R501: Only the doctor who conducted the appointment can issue a prescription
+  Error: "You can only prescribe for your own completed appointments."
+- R502: Prescription.medications must not be empty
+  Error: "Please enter at least one medication"
+- R503: Multiple prescriptions can be issued per appointment (each as a separate record)
+
+---
+
+LO2: View Patient Prescriptions
+Patient or Doctor retrieves prescription history
+
+Prescription Filter.patient id
+    Source: comes from User session.User ID (if Patient)
+              or is provided by user (if Doctor)
+
+Prescription List (informational)
+    Source: NF1
+    editable: no
+
+NF1: Fetch Prescriptions for Patient
+System fetches Prescription list
+WHERE Prescription.patient id = selected patient id
+  AND Prescription.is active = true
+ORDER BY Prescription.issued at DESC
+
+INPUT SOURCES:
+selected patient id comes from LO2.View Patient Prescriptions.Prescription Filter.patient id
+
+---
+
+Pathways:
+1. LO1: Issue Prescription
+   Position: Start
+   Route Type: Alternate
+   a. If viewing history → LO2: View Patient Prescriptions
+   b. If issuing new     → Terminal after save
+
+2. LO2: View Patient Prescriptions
+   Position: Terminal
+
+GO Level Business Rules:
+- R510: Prescriptions are read-only after issuance — no edits allowed
+- R511: Patient can only view their own prescriptions
+- R512: Doctor can view prescriptions for all their patients
+
+
+# ================================================================
+# GO 13 — AI / LLM ASSISTANT
+# ================================================================
+
+GO: AI / LLM Assistant
+is initiated by Patient, Doctor, Nurse, Admin
+Trigger: Manual (chat interaction)
+
+---
+
+LO1: Submit Chat Query
+User sends a natural-language message to the AI assistant
+
+Chat.message
+    Source: is provided by user
+    Displayed as: Text Input / Chat Box
+    Max Length: 2000
+    Error Message: "Please enter a message"
+
+Chat.session history
+    Source: comes from User session chat history
+    hidden: yes
+
+Chat.role context
+    Source: comes from User session.role
+    hidden: yes
+
+Agent Response (informational)
+    Source: NF1
+    editable: no
+
+Tool Calls Transparency (informational)
+    Source: NF2
+    editable: no
+    Helper text: "Shows which system tools the AI invoked to answer"
+
+NF1: Route to LLM with RAG Context
+System sends Chat.message + Chat.session history to LLM
+    with system prompt scoped to Chat.role context
+    with RAG-retrieved knowledge base chunks (top-k = 4)
+Returns: agent response text and list of tool calls made
+
+NF2: Execute Agentic Tool Calls
+System intercepts tool calls from LLM response
+    and executes matched internal functions:
+    - search_doctors        → GET /doctors
+    - get_available_slots   → GET /available-slots
+    - book_appointment      → POST /book-appointment
+    - cancel_appointment    → POST /appointments/{id}/cancel
+    - get_my_appointments   → GET /appointments
+    - get_daily_report      → GET /reports/{date}
+
+NF3: Append to Session History
+System appends user message and agent response to Chat.session history
+    (max 20 turns retained)
+
+Business Rules:
+- R601: LLM cannot perform mutations (book/cancel) without explicit user confirmation shown in UI
+- R602: Role context restricts tool access — patient cannot invoke admin-only tools
+- R603: RAG knowledge base provides hospital-specific grounding (doctor guides, patient manuals)
+- R604: Session history is in-memory only — cleared on logout
+
+---
+
+Pathways:
+1. LO1: Submit Chat Query
+   Position: Start + Terminal (looping until user closes chat)
+
+GO Level Business Rules:
+- R610: LLM responses must be grounded in RAG context to avoid hallucination
+- R611: Tool call results are displayed transparently to the user
+- R612: All LLM interactions are stateless at the server — history is client-managed
+
+
+# ================================================================
+# GO 14 — ANALYTICS & VISUALIZATION
+# ================================================================
+
+GO: Analytics & Visualization
+is initiated by Admin
+Trigger: Manual
+
+---
+
+LO1: Configure Analytics Parameters
+Admin selects date range and optional doctor filter
+
+Analytics Config.date from
+    Source: is provided by user
+    Displayed as: Date Picker
+    Default Value: 30 days ago
+    Error Message: "Please select a start date"
+
+Analytics Config.date to
+    Source: is provided by user
+    Displayed as: Date Picker
+    Default Value: today
+    Error Message: "Please select an end date"
+
+Analytics Config.days
+    Source: NF1 (computed from date range)
+    hidden: yes
+
+NF1: Compute Date Range Days
+System calculates Analytics Config.days
+    using (Analytics Config.date to - Analytics Config.date from).days
+
+Business Rules:
+- R701: Analytics Config.date from must be before Analytics Config.date to
+  Error: "Start date must be before end date"
+- R702: Date range must not exceed 365 days
+  Error: "Analytics range cannot exceed one year"
+
+---
+
+LO2: Generate Analytics Report
+System fetches raw appointment data and computes statistics
+
+Analytics Output.busiest doctor (informational)
+    Source: NF1
+    editable: no
+
+Analytics Output.mean appointments per doctor (informational)
+    Source: NF2
+    editable: no
+
+Analytics Output.peak hour (informational)
+    Source: NF3
+    editable: no
+
+Analytics Output.hour distribution (informational)
+    Source: NF3
+    editable: no
+
+Chart.appointments by hour (informational)
+    Source: NF4
+    editable: no
+    Helper text: "Bar chart — peak hour highlighted in red"
+
+Chart.doctor load (informational)
+    Source: NF5
+    editable: no
+    Helper text: "Horizontal bar chart of appointments per doctor"
+
+Chart.status breakdown (informational)
+    Source: NF6
+    editable: no
+    Helper text: "Pie chart of booked / completed / cancelled / no-show"
+
+NF1: Find Busiest Doctor
+System uses NumPy argmax on appointment counts grouped by doctor id
+Returns: doctor id, doctor name, appointment count,
+         mean and std appointments per doctor
+
+NF2: Compute Statistical Summary
+System uses NumPy mean and std
+    on appointment counts array across all doctors
+
+NF3: Predict Peak Hours
+System uses NumPy histogram (bins = hours 8–20)
+    on appointment start hour array
+Returns: peak hour, full hour distribution dict
+
+NF4: Generate Appointments-by-Hour Chart
+System uses Matplotlib + Seaborn barplot
+    x-axis = hour of day, y-axis = appointment count
+    peak hour bar highlighted in red
+Returns: base64-encoded PNG
+
+NF5: Generate Doctor Load Chart
+System uses Matplotlib + Seaborn horizontal barplot
+    y-axis = doctor name, x-axis = appointment count
+Returns: base64-encoded PNG
+
+NF6: Generate Status Breakdown Chart
+System uses Matplotlib pie chart + Seaborn color palette
+    segments = appointment status counts
+Returns: base64-encoded PNG
+
+---
+
+Pathways:
+1. LO1: Configure Analytics Parameters
+   Position: Start
+   Route Type: Sequential
+   Next: LO2: Generate Analytics Report
+
+2. LO2: Generate Analytics Report
+   Position: Terminal
+
+GO Level Business Rules:
+- R710: Analytics data is sourced from MongoDB analytics collection (denormalised snapshots)
+- R711: Charts are generated server-side (Matplotlib/Seaborn) and returned as base64 PNG
+- R712: All statistical computations use NumPy for consistency
+
+
+# ================================================================
+# GO 15 — G-SUITE INTEGRATION
+# ================================================================
+
+GO: G-Suite Integration
+is initiated by System (automatic) or Admin (manual trigger)
+Trigger: Automatic (background sync) and Manual
+
+---
+
+LO1: Sync Appointments from Google Forms
+System polls Google Sheets (linked to Google Form responses)
+    and creates appointments from new form submissions
+
+Sync Config.spreadsheet id
+    Source: comes from System environment variable GOOGLE_FORMS_SPREADSHEET_ID
+    hidden: yes
+
+Sync Config.poll interval seconds
+    Source: comes from System environment variable FORMS_POLL_INTERVAL
+    Default Value: 60
+    hidden: yes
+
+Sync Result.processed count (informational)
+    Source: NF1
+    editable: no
+
+Sync Result.failed count (informational)
+    Source: NF2
+    editable: no
+
+NF1: Fetch New Form Responses
+System fetches rows from Google Sheets
+WHERE row has not been previously processed
+    (tracked by last-synced row index)
+Returns: list of raw form response dicts
+
+NF2: Parse and Validate Form Response
+System maps form response fields to booking payload
+    patient_name   → Patient.full name
+    patient_email  → Patient.email
+    patient_mobile → Patient.mobile
+    doctor_name    → Doctor.full name (fuzzy match)
+    appointment_date → Appointment.date (multi-format date parsing)
+    appointment_time → Appointment.start time
+Validates all required fields; skips malformed rows
+
+NF3: Create Appointment from Form Response
+System calls BookingService.register_patient (reuse or create)
+    then BookingService.book_appointment
+    using parsed payload from NF2
+
+Business Rules:
+- R801: Malformed or duplicate form rows are skipped and logged — no crash
+- R802: Date parsing supports multiple formats (MM/DD/YYYY, DD/MM/YYYY, ISO)
+- R803: Patient is reused if email already exists (R012 applies)
+
+---
+
+LO2: Export Appointment to Google Calendar
+System creates a Google Calendar event for each confirmed appointment
+
+Calendar Event.title
+    Source: NF1
+    hidden: yes
+
+Calendar Event.start datetime
+    Source: comes from Appointment.date + Appointment.start time
+    hidden: yes
+
+Calendar Event.end datetime
+    Source: comes from Appointment.date + Appointment.end time
+    hidden: yes
+
+Calendar Event.description
+    Source: NF2
+    hidden: yes
+
+Appointment.calendar event id
+    Source: NF3 (stored back on Appointment)
+    hidden: yes
+
+NF1: Build Calendar Event Title
+System constructs title
+    using "Appointment: Dr." + Doctor.full name + " — " + Patient.full name
+
+NF2: Build Calendar Event Description
+System constructs description
+    using Appointment.notes + "\nDoctor: " + Doctor.specialization
+
+NF3: Create Google Calendar Event
+System calls Google Calendar API
+    POST /calendars/primary/events
+    with start, end, title, description, attendees (patient + doctor emails)
+Returns: calendar event id and event link
+
+Business Rules:
+- R811: Calendar export is non-blocking — failure does not fail the booking
+- R812: calendar event id is stored on Appointment for future updates or deletion
+- R813: Only appointments with calendar integration enabled trigger LO2
+
+---
+
+LO3: Export Report to Google Drive
+System uploads daily appointment report PDF to Google Drive folder
+
+Drive Config.folder id
+    Source: comes from System environment variable GOOGLE_DRIVE_FOLDER_ID
+    hidden: yes
+
+Drive Export.file name (informational)
+    Source: NF1
+    editable: no
+
+Drive Export.drive file id (informational)
+    Source: NF2
+    editable: no
+
+NF1: Build Report File Name
+System constructs file name
+    using "DPAS_Report_" + report date + ".pdf"
+
+NF2: Upload PDF to Google Drive
+System calls Google Drive API
+    POST /upload/drive/v3/files
+    with file content, MIME type, parent folder id
+Returns: drive file id and shareable link
+
+Business Rules:
+- R821: Drive export is triggered automatically at end of day or manually by Admin
+- R822: Upload failure is logged but does not block report generation
+- R823: Drive folder id must be configured; export is disabled if missing
+
+---
+
+Pathways:
+1. LO1: Sync Appointments from Google Forms
+   Position: Start (background loop)
+   Route Type: Alternate
+   a. If GOOGLE_FORMS_SPREADSHEET_ID is set → runs continuous background sync
+   b. Otherwise                              → LO1 is skipped
+
+2. LO2: Export Appointment to Google Calendar
+   Position: Triggered after each successful booking (non-blocking)
+
+3. LO3: Export Report to Google Drive
+   Position: Triggered by Admin or scheduled end-of-day task
+
+GO Level Business Rules:
+- R830: All G-Suite calls use service account credentials (service_account.json)
+- R831: G-Suite integration is fully optional — system works without it
+- R832: All G-Suite errors are caught, logged, and surfaced as warnings (never fatal)
+
+
+# ================================================================
+# END OF DOCTOR–PATIENT APPOINTMENT MANAGEMENT SYSTEM — NSL SPEC
+# ================================================================
