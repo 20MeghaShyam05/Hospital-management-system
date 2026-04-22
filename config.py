@@ -35,20 +35,20 @@ class Settings:
     # -------------------------------------------------------------------------
     # PostgreSQL
     # -------------------------------------------------------------------------
-    POSTGRES_HOST:     str = os.getenv("POSTGRES_HOST",     "10.10.1.12")
+    POSTGRES_HOST:     str = os.getenv("POSTGRES_HOST",     "")
     POSTGRES_PORT:     int = int(os.getenv("POSTGRES_PORT", "5432"))
-    POSTGRES_DB:       str = os.getenv("POSTGRES_DB",       "kesa_shyam_db")
-    POSTGRES_USER:     str = os.getenv("POSTGRES_USER",     "kesa_shyam")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "P@ssword321")
+    POSTGRES_DB:       str = os.getenv("POSTGRES_DB",       "")
+    POSTGRES_USER:     str = os.getenv("POSTGRES_USER",     "")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
 
     # -------------------------------------------------------------------------
     # MongoDB
     # -------------------------------------------------------------------------
     MONGO_URI: str = os.getenv(
         "MONGO_URI",
-        "mongodb://megha.nagireddy:Megha%402025@10.10.1.12:27017/megha_db",
+        "",
     )
-    MONGO_DB:  str = os.getenv("MONGO_DB",  "megha_db")
+    MONGO_DB:  str = os.getenv("MONGO_DB",  "")
 
     # -------------------------------------------------------------------------
     # Hospital business rules
@@ -99,7 +99,7 @@ class Settings:
     # -------------------------------------------------------------------------
     # Notifications (used by adapters/gmail.py)
     # -------------------------------------------------------------------------
-    NOTIFICATION_EMAIL: str = os.getenv("NOTIFICATION_EMAIL", "noreply@hospital.local")
+    NOTIFICATION_EMAIL: str = os.getenv("NOTIFICATION_EMAIL", "")
 
     # -------------------------------------------------------------------------
     # G-Suite Integration
@@ -121,7 +121,7 @@ class Settings:
     GOOGLE_CALENDAR_ID: str = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 
     # Gmail sender
-    GMAIL_SENDER_EMAIL: str = os.getenv("GMAIL_SENDER_EMAIL", "meghashyam2005@gmail.com")
+    GMAIL_SENDER_EMAIL: str = os.getenv("GMAIL_SENDER_EMAIL", "")
 
     # -------------------------------------------------------------------------
     # LLM — Groq (free, Llama 3)
@@ -154,13 +154,13 @@ class Settings:
     # -------------------------------------------------------------------------
     # RBAC / Auth
     # -------------------------------------------------------------------------
-    JWT_SECRET:     str = os.getenv("JWT_SECRET",     "change-me-in-production")
+    JWT_SECRET:     str = os.getenv("JWT_SECRET",     "")
     JWT_ALGORITHM:  str = os.getenv("JWT_ALGORITHM",  "HS256")
     JWT_EXPIRE_MIN: int = int(os.getenv("JWT_EXPIRE_MIN", "60"))
-    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
-    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
-    FRONT_DESK_USERNAME: str = os.getenv("FRONT_DESK_USERNAME", "frontdesk")
-    FRONT_DESK_PASSWORD: str = os.getenv("FRONT_DESK_PASSWORD", "frontdesk123")
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+    FRONT_DESK_USERNAME: str = os.getenv("FRONT_DESK_USERNAME", "")
+    FRONT_DESK_PASSWORD: str = os.getenv("FRONT_DESK_PASSWORD", "")
 
 
     def validate(self) -> None:
